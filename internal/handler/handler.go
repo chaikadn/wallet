@@ -34,7 +34,7 @@ func (h *Handler) handleBalance(w http.ResponseWriter, r *http.Request) {
 	// в storage слое - обычно валидации нет (каждый слой доверяет вызвавшему его слою), но можно сделать "defensive programming", защита от ошибок самого разработчика (например, если кто-то вызвал storage напрямую, минуя handler).
 
 	if walletUUID == "" {
-		h.respondError(w, "empty wallet uuid", http.StatusBadRequest)
+		h.respondError(w, "empty wallet uuid", http.StatusBadRequest, errEmptyUUID)
 		return
 	}
 	// TODO: проверить соответствие формату uuid
@@ -43,7 +43,7 @@ func (h *Handler) handleBalance(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// TODO: выбирать статус код исходя из ошибки
 		// handle error
-		h.respondError(w, "failed to get balance", http.StatusBadRequest)
+		h.respondError(w, "failed to get balance", http.StatusBadRequest, err)
 		return
 	}
 
@@ -52,37 +52,55 @@ func (h *Handler) handleBalance(w http.ResponseWriter, r *http.Request) {
 		Balance:    balance,
 	}
 
-	h.respondJSON(w, resp, http.StatusOK)
+	h.respondJSON(w, &resp, http.StatusOK)
 }
 
 func (h *Handler) handleTransaction(w http.ResponseWriter, r *http.Request) {
 	req := transactionRequest{}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		// handle error
-		h.respondError(w, "failed to decode request", http.StatusBadRequest)
+		h.respondError(w, "failed to decode request", http.StatusBadRequest, err)
 		return
 	}
 
 	switch req.OperationType {
 	case operationTypeDeposit:
 		if err := h.service.Deposit(req.WalletUUID, req.Amount); err != nil {
-			h.respondError(w, "failed to deposit", http.StatusInternalServerError)
+			h.respondError(w, "failed to deposit", http.StatusInternalServerError, err)
+			return
 		}
 	case operationTypeWithdraw:
 		if err := h.service.Withdraw(req.WalletUUID, req.Amount); err != nil {
-			h.respondError(w, "failed to withdraw", http.StatusInternalServerError)
+			h.respondError(w, "failed to withdraw", http.StatusInternalServerError, err)
+			return
 		}
 	default:
-		h.respondError(w, "unknown operation type", http.StatusBadRequest)
+		h.respondError(
+			w, "unknown operation type", http.StatusBadRequest,
+			fmt.Errorf("%v: %s", errUnknownOperationType, req.OperationType),
+		)
 		return
 	}
 }
 
-// передавать ссылку на data для больших data
 func (h *Handler) respondJSON(w http.ResponseWriter, data any, statusCode int) {
-	// TODO
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+
+	err := json.NewEncoder(w).Encode(data)
+	if err != nil {
+		// TODO: log error
+	}
 }
 
-func (h *Handler) respondError(w http.ResponseWriter, errMessage string, statusCode int) {
-	// TODO
+func (h *Handler) respondError(w http.ResponseWriter, errMessage string, statusCode int, err error) {
+	// TODO: log error
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+
+	err = json.NewEncoder(w).Encode(errorMessage{Err: errMessage})
+	if err != nil {
+		// TODO: log encoding error
+	}
 }

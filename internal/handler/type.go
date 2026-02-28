@@ -1,6 +1,13 @@
 package handler
 
+import "errors"
+
 const urlParamWalletUUID = "WALLET_UUID"
+
+var (
+	errEmptyUUID            = errors.New("empty uuid")
+	errUnknownOperationType = errors.New("unknown operation type")
+)
 
 type transactionRequest struct {
 	WalletUUID    string        `json:"walletId"`
