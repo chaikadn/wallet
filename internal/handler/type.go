@@ -1,6 +1,6 @@
 package handler
 
-// const urlParamWalletUUID = "WALLET_UUID"
+const urlParamWalletUUID = "WALLET_UUID"
 
 type transactionRequest struct {
 	WalletUUID    string        `json:"walletId"`

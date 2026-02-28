@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"wallet/internal/service"
 
@@ -18,15 +19,25 @@ func (h *Handler) RegisterRoutes(router *chi.Mux) {
 		r.Group(func(r chi.Router) {
 			// сюда middleware для этой группы
 
-			r.Get("/wallets/{WALLET_UUID}", h.handleBalance)
+			r.Get(fmt.Sprintf("/wallets/{%s}", urlParamWalletUUID), h.handleBalance)
 			r.Post("/wallet", h.handleTransaction)
 		})
 	})
 }
 
 func (h *Handler) handleBalance(w http.ResponseWriter, r *http.Request) {
-	walletUUID := chi.URLParam(r, "WALLET_UUID")
+	walletUUID := chi.URLParam(r, urlParamWalletUUID)
+
 	// валидировать uuid
+	// в http слое проверить не пустой ли он и соответствует ли формату
+	// в service слое проверить бизнес-правила - кошелёк существует, и т.д.
+	// в storage слое - обычно валидации нет (каждый слой доверяет вызвавшему его слою), но можно сделать "defensive programming", защита от ошибок самого разработчика (например, если кто-то вызвал storage напрямую, минуя handler).
+
+	if walletUUID == "" {
+		h.respondError(w, "empty wallet uuid", http.StatusBadRequest)
+		return
+	}
+	// TODO: проверить соответствие формату uuid
 
 	balance, err := h.service.GetBalance(walletUUID)
 	if err != nil {
