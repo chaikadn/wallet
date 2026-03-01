@@ -7,10 +7,16 @@ import (
 	"wallet/internal/service"
 
 	"github.com/go-chi/chi/v5"
+	"go.uber.org/zap"
 )
 
 type Handler struct {
 	service service.Service
+	log     *zap.Logger
+}
+
+func NewHandler(service service.Service, logger *zap.Logger) *Handler {
+	return &Handler{service: service, log: logger}
 }
 
 func (h *Handler) RegisterRoutes(router *chi.Mux) {
@@ -42,7 +48,6 @@ func (h *Handler) handleBalance(w http.ResponseWriter, r *http.Request) {
 	balance, err := h.service.GetBalance(walletUUID)
 	if err != nil {
 		// TODO: выбирать статус код исходя из ошибки
-		// handle error
 		h.respondError(w, "failed to get balance", http.StatusBadRequest, err)
 		return
 	}
@@ -58,7 +63,6 @@ func (h *Handler) handleBalance(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleTransaction(w http.ResponseWriter, r *http.Request) {
 	req := transactionRequest{}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		// handle error
 		h.respondError(w, "failed to decode request", http.StatusBadRequest, err)
 		return
 	}
@@ -89,18 +93,18 @@ func (h *Handler) respondJSON(w http.ResponseWriter, data any, statusCode int) {
 
 	err := json.NewEncoder(w).Encode(data)
 	if err != nil {
-		// TODO: log error
+		h.log.Error("failed to encode response", zap.Error(err))
 	}
 }
 
 func (h *Handler) respondError(w http.ResponseWriter, errMessage string, statusCode int, err error) {
-	// TODO: log error
+	h.log.Error(errMessage, zap.Error(err))
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 
 	err = json.NewEncoder(w).Encode(errorMessage{Err: errMessage})
 	if err != nil {
-		// TODO: log encoding error
+		h.log.Error("failed to encode error response", zap.Error(err))
 	}
 }
