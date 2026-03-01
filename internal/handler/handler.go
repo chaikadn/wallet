@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"wallet/internal/service"
 
-	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
 )
 
@@ -19,25 +18,18 @@ func NewHandler(service service.Service, logger *zap.Logger) *Handler {
 	return &Handler{service: service, log: logger}
 }
 
-func (h *Handler) RegisterRoutes(router *chi.Mux) {
-	// общие middleware можно в main.go
-	router.Route("/api/v1", func(r chi.Router) {
-		r.Group(func(r chi.Router) {
-			// сюда middleware для этой группы
+// пока обойдемся без chi, можно взять стандартный роутер
+func (h *Handler) RegisterRoutes() http.Handler {
+	mux := http.NewServeMux()
 
-			r.Get(fmt.Sprintf("/wallets/{%s}", urlParamWalletUUID), h.handleBalance)
-			r.Post("/wallet", h.handleTransaction)
-		})
-	})
+	mux.HandleFunc(fmt.Sprintf("GET /api/v1/wallets/{%s}", urlParamWalletUUID), h.handleBalance)
+	mux.HandleFunc("POST /api/v1/wallets", h.handleTransaction)
+
+	return mux
 }
 
 func (h *Handler) handleBalance(w http.ResponseWriter, r *http.Request) {
-	walletUUID := chi.URLParam(r, urlParamWalletUUID)
-
-	// валидировать uuid
-	// в http слое проверить не пустой ли он и соответствует ли формату
-	// в service слое проверить бизнес-правила - кошелёк существует, и т.д.
-	// в storage слое - обычно валидации нет (каждый слой доверяет вызвавшему его слою), но можно сделать "defensive programming", защита от ошибок самого разработчика (например, если кто-то вызвал storage напрямую, минуя handler).
+	walletUUID := r.PathValue(urlParamWalletUUID)
 
 	if walletUUID == "" {
 		h.respondError(w, "empty wallet uuid", http.StatusBadRequest, errEmptyUUID)
@@ -108,3 +100,21 @@ func (h *Handler) respondError(w http.ResponseWriter, errMessage string, statusC
 		h.log.Error("failed to encode error response", zap.Error(err))
 	}
 }
+
+// func (h *Handler) RegisterRoutes(router *chi.Mux) {
+// 	// общие middleware можно в main.go
+// 	router.Route("/api/v1", func(r chi.Router) {
+// 		r.Group(func(r chi.Router) {
+// 			// сюда middleware для этой группы
+// 			r.Get(fmt.Sprintf("/wallets/{%s}", urlParamWalletUUID), h.handleBalance)
+// 			r.Post("/wallet", h.handleTransaction)
+// 		})
+// 	})
+// }
+
+// walletUUID := chi.URLParam(r, urlParamWalletUUID)
+
+// валидировать uuid
+// в http слое проверить не пустой ли он и соответствует ли формату
+// в service слое проверить бизнес-правила - кошелёк существует, и т.д.
+// в storage слое - обычно валидации нет (каждый слой доверяет вызвавшему его слою), но можно сделать "defensive programming", защита от ошибок самого разработчика (например, если кто-то вызвал storage напрямую, минуя handler).
