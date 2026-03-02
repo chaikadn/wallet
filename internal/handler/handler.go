@@ -50,6 +50,7 @@ func (h *Handler) handleBalance(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.respondJSON(w, &resp, http.StatusOK)
+
 }
 
 func (h *Handler) handleTransaction(w http.ResponseWriter, r *http.Request) {
@@ -58,6 +59,8 @@ func (h *Handler) handleTransaction(w http.ResponseWriter, r *http.Request) {
 		h.respondError(w, "failed to decode request", http.StatusBadRequest, err)
 		return
 	}
+
+	// TODO: валидировать структуру transactionRequest
 
 	switch req.OperationType {
 	case operationTypeDeposit:

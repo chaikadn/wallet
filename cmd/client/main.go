@@ -11,6 +11,10 @@ import (
 )
 
 // TODO: refactoring
+// usage:
+// -i <wallet_id>, -t <d> or <w>, -a <amount> -- deposit or withdraw amount
+// or -i <wallet_id> -- get balance
+
 func main() {
 	walletID := flag.String("i", "", "wallet id")
 	operationType := flag.String("t", "", "operation type: deposit (short d) or withdraw (short w)")
@@ -61,7 +65,3 @@ func main() {
 
 	log.Println(resp.Status, string(respBody))
 }
-
-// usage:
-// -i wallet_id, -t d or w, -a amount -- deposit or withdraw amount
-// or -i wallet_id -- get balance
