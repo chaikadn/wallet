@@ -50,7 +50,6 @@ func (h *Handler) handleBalance(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.respondJSON(w, &resp, http.StatusOK)
-
 }
 
 func (h *Handler) handleTransaction(w http.ResponseWriter, r *http.Request) {

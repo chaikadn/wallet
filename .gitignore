@@ -1,1 +1,4 @@
 TZ.md
+.env
+*.sql
+*.db

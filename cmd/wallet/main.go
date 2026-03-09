@@ -1,34 +1,40 @@
 package main
 
 import (
-	"log"
+	defaultLog "log"
 	"net/http"
+	"wallet/internal/config"
 	"wallet/internal/handler"
 	"wallet/internal/service/wallet"
 	"wallet/internal/storage/sqlite"
 
+	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 )
 
 func main() {
-	logger, err := newLogger("debug")
+	_ = godotenv.Load()
+	cfg := config.MustLoad()
+
+	log, err := newLogger(cfg.LogLevel)
 	if err != nil {
-		log.Fatal("failed to initialize logger", err)
+		defaultLog.Fatal("failed to initialize logger", err)
 	}
-	defer logger.Sync()
-	logger.Debug("logger initialized")
+	defer log.Sync()
 
-	storage, err := sqlite.New("./storage.db", logger)
+	log.Info("starting wallet", zap.String("log-level", cfg.LogLevel))
+
+	storage, err := sqlite.New(cfg.StoragePath, log)
 	if err != nil {
-		logger.Fatal("failed to connect to db", zap.Error(err))
+		log.Fatal("failed to connect to db", zap.Error(err))
 	}
-	logger.Debug("successfully connected to db", zap.String("path", "./storage.db"))
+	log.Debug("successfully connected to db", zap.String("path", cfg.StoragePath))
 
-	service := wallet.NewWalletService(storage, logger)
-	handler := handler.NewHandler(service, logger)
+	service := wallet.NewWalletService(storage, log)
+	handler := handler.NewHandler(service, log)
 
-	logger.Info("starting server", zap.String("address", ":8080"))
-	http.ListenAndServe(":8080", handler.RegisterRoutes())
+	log.Info("starting server", zap.String("address", cfg.Address))
+	http.ListenAndServe(cfg.Address, handler.RegisterRoutes())
 
 	// TODO: grasefull shutdown
 }
