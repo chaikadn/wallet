@@ -33,8 +33,12 @@ func main() {
 	service := wallet.NewWalletService(storage, log)
 	handler := handler.NewHandler(service, log)
 
-	log.Info("starting server", zap.String("address", cfg.Address))
-	http.ListenAndServe(cfg.Address, handler.RegisterRoutes())
+	srv := newServer(cfg, handler)
+
+	log.Info("starting server", zap.String("address", cfg.HTTPServer.Address))
+	if err := srv.ListenAndServe(); err != nil {
+		log.Error("failed to start server")
+	}
 
 	// TODO: grasefull shutdown
 }
@@ -53,9 +57,12 @@ func newLogger(logLevel string) (*zap.Logger, error) {
 	return cfg.Build()
 }
 
-// router := chi.NewMux()
-// handler.RegisterRoutes(router)
-
-// Нет таймаутов сервера. Каждое keep-alive соединение будет работать в отдельной горутине, а горутина никогда не завершится.
-// надо делать свой Server и указывать таймауты. для данного проекта пока можно без таймаутов,
-// т.к. все клиенты (например curl) "одноразовые" и соединения закрываются после завершения их работы.
+func newServer(cfg *config.Config, handler *handler.Handler) http.Server {
+	return http.Server{
+		Addr:         cfg.Address,
+		Handler:      handler.RegisterRoutes(),
+		ReadTimeout:  cfg.HTTPServer.Timeout,
+		WriteTimeout: cfg.HTTPServer.Timeout,
+		IdleTimeout:  cfg.HTTPServer.IdleTimeout,
+	}
+}

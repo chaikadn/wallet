@@ -2,6 +2,7 @@ package config
 
 import (
 	"log"
+	"time"
 
 	"github.com/caarlos0/env/v11"
 )
@@ -13,16 +14,16 @@ type Config struct {
 }
 
 type HTTPServer struct {
-	Address     string `env:"ADDRESS" envDefault:"localhost:8080"`
-	Timeout     string `env:"TIMEOUT" envDefault:"4s"`
-	IdleTimeout string `env:"IDLE_TIMEOUT" envDefault:"60s"`
+	Address     string        `env:"ADDRESS" envDefault:"localhost:8080"`
+	Timeout     time.Duration `env:"TIMEOUT" envDefault:"4s"`
+	IdleTimeout time.Duration `env:"IDLE_TIMEOUT" envDefault:"60s"`
 	// user password для админки
 }
 
 func MustLoad() *Config {
 	cfg := &Config{}
 	if err := env.Parse(cfg); err != nil {
-		log.Fatalf("cannot load config: %s", err)
+		log.Fatalf("failed to load config: %s", err)
 	}
 	return cfg
 }
