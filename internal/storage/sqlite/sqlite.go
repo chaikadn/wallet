@@ -16,8 +16,16 @@ func New(dbPath string, logger *zap.Logger) (*Storage, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	if err := db.Ping(); err != nil {
+		return nil, err
+	}
+
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS wallet(
+			id TEXT PRIMARY KEY,
+			balance INTEGER NOT NULL DEFAULT 0
+		)`)
+	if err != nil {
 		return nil, err
 	}
 

@@ -4,6 +4,7 @@ go 1.25.3
 
 require (
 	github.com/caarlos0/env/v11 v11.4.0
+	github.com/go-chi/chi/v5 v5.2.5
 	github.com/joho/godotenv v1.5.1
 	go.uber.org/zap v1.27.1
 	modernc.org/sqlite v1.46.1

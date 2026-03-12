@@ -4,8 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	m "wallet/internal/middleware"
 	"wallet/internal/service"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"go.uber.org/zap"
 )
 
@@ -18,14 +21,15 @@ func NewHandler(service service.Service, logger *zap.Logger) *Handler {
 	return &Handler{service: service, log: logger}
 }
 
-// пока обойдемся без chi, можно взять стандартный роутер
-func (h *Handler) RegisterRoutes() http.Handler {
-	mux := http.NewServeMux()
+func (h *Handler) RegisterRoutes(r chi.Router) {
+	r.Use(middleware.Recoverer)
+	// r.Use(middleware.RequestID)
+	r.Use(m.Logger(h.log))
 
-	mux.HandleFunc(fmt.Sprintf("GET /api/v1/wallets/{%s}", urlParamWalletUUID), h.handleBalance)
-	mux.HandleFunc("POST /api/v1/wallets", h.handleTransaction)
-
-	return mux
+	r.Route("/api/v1", func(r chi.Router) {
+		r.Get("/wallets/{"+urlParamWalletUUID+"}", h.handleBalance)
+		r.Post("/wallets", h.handleTransaction)
+	})
 }
 
 func (h *Handler) handleBalance(w http.ResponseWriter, r *http.Request) {

@@ -8,6 +8,7 @@ import (
 	"wallet/internal/service/wallet"
 	"wallet/internal/storage/sqlite"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 )
@@ -31,9 +32,13 @@ func main() {
 	log.Debug("successfully connected to db", zap.String("path", cfg.StoragePath))
 
 	service := wallet.NewWalletService(storage, log)
-	handler := handler.NewHandler(service, log)
 
-	srv := newServer(cfg, handler)
+	router := chi.NewRouter()
+
+	handler := handler.NewHandler(service, log)
+	handler.RegisterRoutes(router)
+
+	srv := newServer(cfg, router)
 
 	log.Info("starting server", zap.String("address", cfg.HTTPServer.Address))
 	if err := srv.ListenAndServe(); err != nil {
@@ -57,10 +62,10 @@ func newLogger(logLevel string) (*zap.Logger, error) {
 	return cfg.Build()
 }
 
-func newServer(cfg *config.Config, handler *handler.Handler) http.Server {
+func newServer(cfg *config.Config, handler http.Handler) http.Server {
 	return http.Server{
 		Addr:         cfg.Address,
-		Handler:      handler.RegisterRoutes(),
+		Handler:      handler,
 		ReadTimeout:  cfg.HTTPServer.Timeout,
 		WriteTimeout: cfg.HTTPServer.Timeout,
 		IdleTimeout:  cfg.HTTPServer.IdleTimeout,
