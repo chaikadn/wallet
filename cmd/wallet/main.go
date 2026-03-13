@@ -29,13 +29,15 @@ func main() {
 	if err != nil {
 		log.Fatal("failed to connect to db", zap.Error(err))
 	}
+	defer storage.Close()
+
 	log.Debug("successfully connected to db", zap.String("path", cfg.StoragePath))
 
-	service := wallet.NewWalletService(storage, log)
+	wallet := wallet.NewWallet(storage, log)
 
 	router := chi.NewRouter()
 
-	handler := handler.NewHandler(service, log)
+	handler := handler.NewHandler(wallet, log)
 	handler.RegisterRoutes(router)
 
 	srv := newServer(cfg, router)

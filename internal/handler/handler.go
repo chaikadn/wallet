@@ -5,20 +5,25 @@ import (
 	"fmt"
 	"net/http"
 	m "wallet/internal/middleware"
-	"wallet/internal/service"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"go.uber.org/zap"
 )
 
-type Handler struct {
-	service service.Service
-	log     *zap.Logger
+type walletService interface {
+	GetBalance(walletID string) (int, error)
+	Deposit(walletID string, amount int) error
+	Withdraw(walletID string, amount int) error
 }
 
-func NewHandler(service service.Service, logger *zap.Logger) *Handler {
-	return &Handler{service: service, log: logger}
+type Handler struct {
+	walletService walletService
+	log           *zap.Logger
+}
+
+func NewHandler(walletService walletService, logger *zap.Logger) *Handler {
+	return &Handler{walletService: walletService, log: logger}
 }
 
 func (h *Handler) RegisterRoutes(r chi.Router) {
@@ -33,7 +38,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 }
 
 func (h *Handler) handleBalance(w http.ResponseWriter, r *http.Request) {
-	walletUUID := r.PathValue(urlParamWalletUUID)
+	walletUUID := chi.URLParam(r, urlParamWalletUUID)
 
 	if walletUUID == "" {
 		h.respondError(w, "empty wallet uuid", http.StatusBadRequest, errEmptyUUID)
@@ -41,7 +46,7 @@ func (h *Handler) handleBalance(w http.ResponseWriter, r *http.Request) {
 	}
 	// TODO: проверить соответствие формату uuid
 
-	balance, err := h.service.GetBalance(walletUUID)
+	balance, err := h.walletService.GetBalance(walletUUID)
 	if err != nil {
 		// TODO: выбирать статус код исходя из ошибки
 		h.respondError(w, "failed to get balance", http.StatusBadRequest, err)
@@ -67,12 +72,12 @@ func (h *Handler) handleTransaction(w http.ResponseWriter, r *http.Request) {
 
 	switch req.OperationType {
 	case operationTypeDeposit:
-		if err := h.service.Deposit(req.WalletUUID, req.Amount); err != nil {
+		if err := h.walletService.Deposit(req.WalletUUID, req.Amount); err != nil {
 			h.respondError(w, "failed to deposit", http.StatusInternalServerError, err)
 			return
 		}
 	case operationTypeWithdraw:
-		if err := h.service.Withdraw(req.WalletUUID, req.Amount); err != nil {
+		if err := h.walletService.Withdraw(req.WalletUUID, req.Amount); err != nil {
 			h.respondError(w, "failed to withdraw", http.StatusInternalServerError, err)
 			return
 		}
@@ -106,19 +111,6 @@ func (h *Handler) respondError(w http.ResponseWriter, errMessage string, statusC
 		h.log.Error("failed to encode error response", zap.Error(err))
 	}
 }
-
-// func (h *Handler) RegisterRoutes(router *chi.Mux) {
-// 	// общие middleware можно в main.go
-// 	router.Route("/api/v1", func(r chi.Router) {
-// 		r.Group(func(r chi.Router) {
-// 			// сюда middleware для этой группы
-// 			r.Get(fmt.Sprintf("/wallets/{%s}", urlParamWalletUUID), h.handleBalance)
-// 			r.Post("/wallet", h.handleTransaction)
-// 		})
-// 	})
-// }
-
-// walletUUID := chi.URLParam(r, urlParamWalletUUID)
 
 // валидировать uuid
 // в http слое проверить не пустой ли он и соответствует ли формату

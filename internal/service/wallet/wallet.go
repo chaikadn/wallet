@@ -2,44 +2,49 @@ package wallet
 
 import (
 	"fmt"
-	"wallet/internal/storage"
 
 	"go.uber.org/zap"
 )
 
-type WalletService struct {
-	storage storage.Storage
-	log     *zap.Logger
+type walletStorage interface {
+	GetBalance(walletID string) (int, error)
+	Deposit(walletID string, amount int) error
+	Withdraw(walletID string, amount int) error
 }
 
-func NewWalletService(storage storage.Storage, logger *zap.Logger) *WalletService {
-	return &WalletService{storage: storage, log: logger}
+type Wallet struct {
+	walletStorage walletStorage
+	log           *zap.Logger
 }
 
-func (ws *WalletService) GetBalance(walletID string) (int, error) {
+func NewWallet(walletStorage walletStorage, logger *zap.Logger) *Wallet {
+	return &Wallet{walletStorage: walletStorage, log: logger}
+}
+
+func (w *Wallet) GetBalance(walletID string) (int, error) {
 	// валидировать uuid на бизнес-правила (есть ли такой кошелек)
 
-	balance, err := ws.storage.GetBalance(walletID)
+	balance, err := w.walletStorage.GetBalance(walletID)
 	if err != nil {
 		return 0, fmt.Errorf("service error: get balance: %v", err)
 	}
 	return balance, nil
 }
 
-func (ws *WalletService) Deposit(walletID string, amount int) error {
+func (w *Wallet) Deposit(walletID string, amount int) error {
 	// валидировать uuid на бизнес-правила (есть ли такой кошелек)
 
-	err := ws.storage.Deposit(walletID, amount)
+	err := w.walletStorage.Deposit(walletID, amount)
 	if err != nil {
 		return fmt.Errorf("service error: deposit: %v", err)
 	}
 	return nil
 }
 
-func (ws *WalletService) Withdraw(walletID string, amount int) error {
+func (w *Wallet) Withdraw(walletID string, amount int) error {
 	// валидировать uuid на бизнес-правила (есть ли такой кошелек)
 
-	err := ws.storage.Withdraw(walletID, amount)
+	err := w.walletStorage.Withdraw(walletID, amount)
 	if err != nil {
 		return fmt.Errorf("service error: withdraw: %v", err)
 	}
