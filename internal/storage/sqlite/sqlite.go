@@ -2,7 +2,9 @@ package sqlite
 
 import (
 	"database/sql"
+	"errors"
 	"sync"
+	"wallet/internal/storage"
 
 	"go.uber.org/zap"
 	_ "modernc.org/sqlite"
@@ -42,10 +44,13 @@ func (s *Storage) GetBalance(walletID string) (int, error) {
 
 	var balance int
 	err := s.db.QueryRow(`SELECT balance FROM wallet WHERE id = ?`, walletID).Scan(&balance)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, storage.ErrWalletNotFound
+	}
 	if err != nil {
-		// handle sql errors / no rows!
 		return 0, err
 	}
+
 	return balance, nil
 }
 
@@ -54,11 +59,19 @@ func (s *Storage) Deposit(walletID string, amount int) error {
 	s.mx.Lock()
 	defer s.mx.Unlock()
 
-	_, err := s.db.Exec(`UPDATE wallet SET balance = balance + ? WHERE id = ?`, amount, walletID)
+	res, err := s.db.Exec(`UPDATE wallet SET balance = balance + ? WHERE id = ?`, amount, walletID)
 	if err != nil {
-		// handle sql errors / rows affected!
 		return err
 	}
+
+	rowsAffected, resErr := res.RowsAffected()
+	if resErr != nil {
+		return resErr
+	}
+	if rowsAffected == 0 {
+		return storage.ErrWalletNotFound
+	}
+
 	return nil
 }
 
@@ -69,11 +82,19 @@ func (s *Storage) Withdraw(walletID string, amount int) error {
 
 	// TODO: читать баланс до операции, чтобы проверять не ушел ли в минус баланс
 
-	_, err := s.db.Exec(`UPDATE wallet SET balance = balance - ? WHERE id = ?`, amount, walletID)
+	res, err := s.db.Exec(`UPDATE wallet SET balance = balance - ? WHERE id = ?`, amount, walletID)
 	if err != nil {
-		// handle sql errors / rows affected!
 		return err
 	}
+
+	rowsAffected, resErr := res.RowsAffected()
+	if resErr != nil {
+		return resErr
+	}
+	if rowsAffected == 0 {
+		return storage.ErrWalletNotFound
+	}
+
 	return nil
 }
 

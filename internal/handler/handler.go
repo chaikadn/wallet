@@ -2,9 +2,11 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	m "wallet/internal/middleware"
+	"wallet/internal/service"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -47,6 +49,12 @@ func (h *Handler) handleBalance(w http.ResponseWriter, r *http.Request) {
 	// TODO: проверить соответствие формату uuid
 
 	balance, err := h.walletService.GetBalance(walletUUID)
+
+	if errors.Is(err, service.ErrWalletNotFound) {
+		h.respondError(w, "wallet not found", http.StatusNotFound, err)
+		return
+	}
+
 	if err != nil {
 		// TODO: выбирать статус код исходя из ошибки
 		h.respondError(w, "failed to get balance", http.StatusBadRequest, err)
@@ -72,19 +80,43 @@ func (h *Handler) handleTransaction(w http.ResponseWriter, r *http.Request) {
 
 	switch req.OperationType {
 	case operationTypeDeposit:
-		if err := h.walletService.Deposit(req.WalletUUID, req.Amount); err != nil {
+		err := h.walletService.Deposit(req.WalletUUID, req.Amount)
+		if errors.Is(err, service.ErrWalletNotFound) {
+			h.respondError(w, "wallet not found", http.StatusNotFound, err)
+			return
+		}
+		if errors.Is(err, service.ErrInvalidAmount) {
+			h.respondError(w, "amount must be greater than zero", http.StatusBadRequest, err)
+			return
+		}
+		if err != nil {
 			h.respondError(w, "failed to deposit", http.StatusInternalServerError, err)
 			return
 		}
+
 	case operationTypeWithdraw:
-		if err := h.walletService.Withdraw(req.WalletUUID, req.Amount); err != nil {
+		err := h.walletService.Withdraw(req.WalletUUID, req.Amount)
+		if errors.Is(err, service.ErrWalletNotFound) {
+			h.respondError(w, "wallet not found", http.StatusNotFound, err)
+			return
+		}
+		if errors.Is(err, service.ErrInvalidAmount) {
+			h.respondError(w, "amount must be greater than zero", http.StatusBadRequest, err)
+			return
+		}
+		if errors.Is(err, service.ErrInsufficientFunds) {
+			h.respondError(w, "insufficient funds", http.StatusUnprocessableEntity, err)
+			return
+		}
+		if err != nil {
 			h.respondError(w, "failed to withdraw", http.StatusInternalServerError, err)
 			return
 		}
+
 	default:
 		h.respondError(
 			w, "unknown operation type", http.StatusBadRequest,
-			fmt.Errorf("%v: %s", errUnknownOperationType, req.OperationType),
+			fmt.Errorf("%w: %s", errUnknownOperationType, req.OperationType),
 		)
 		return
 	}
