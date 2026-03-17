@@ -22,7 +22,7 @@ const (
 	operationTypeWithdraw operationType = "WITHDRAW"
 )
 
-type balanseResponse struct {
+type balanceResponse struct {
 	WalletUUID string `json:"walletId"`
 	Balance    int    `json:"balance"`
 }

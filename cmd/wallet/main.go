@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"wallet/internal/config"
 	"wallet/internal/handler"
-	"wallet/internal/service/wallet"
+	"wallet/internal/service"
 	"wallet/internal/storage/sqlite"
 
 	"github.com/go-chi/chi/v5"
@@ -33,7 +33,7 @@ func main() {
 
 	log.Debug("successfully connected to db", zap.String("path", cfg.StoragePath))
 
-	wallet := wallet.NewWallet(storage, log)
+	wallet := service.NewWallet(storage, log)
 
 	router := chi.NewRouter()
 

@@ -3,7 +3,7 @@ package sqlite
 import (
 	"database/sql"
 	"errors"
-	"sync"
+	"fmt"
 	"wallet/internal/storage"
 
 	"go.uber.org/zap"
@@ -12,7 +12,6 @@ import (
 
 type Storage struct {
 	db *sql.DB
-	mx *sync.RWMutex
 }
 
 func New(dbPath string, logger *zap.Logger) (*Storage, error) {
@@ -24,6 +23,9 @@ func New(dbPath string, logger *zap.Logger) (*Storage, error) {
 		return nil, err
 	}
 
+	// sqlite не может нормально работать при конкурентном доступе поэтому пока ограничим пул соединений до одного
+	db.SetMaxOpenConns(1)
+
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS wallet(
 			id TEXT PRIMARY KEY,
@@ -34,14 +36,10 @@ func New(dbPath string, logger *zap.Logger) (*Storage, error) {
 		return nil, err
 	}
 
-	return &Storage{db: db, mx: &sync.RWMutex{}}, nil
+	return &Storage{db: db}, nil
 }
 
 func (s *Storage) GetBalance(walletID string) (int, error) {
-	// TODO: лучше транзакцию
-	s.mx.RLock()
-	defer s.mx.RUnlock()
-
 	var balance int
 	err := s.db.QueryRow(`SELECT balance FROM wallet WHERE id = ?`, walletID).Scan(&balance)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -55,10 +53,6 @@ func (s *Storage) GetBalance(walletID string) (int, error) {
 }
 
 func (s *Storage) Deposit(walletID string, amount int) error {
-	// TODO: лучше транзакцию
-	s.mx.Lock()
-	defer s.mx.Unlock()
-
 	res, err := s.db.Exec(`UPDATE wallet SET balance = balance + ? WHERE id = ?`, amount, walletID)
 	if err != nil {
 		return err
@@ -76,23 +70,29 @@ func (s *Storage) Deposit(walletID string, amount int) error {
 }
 
 func (s *Storage) Withdraw(walletID string, amount int) error {
-	// TODO: лучше транзакцию
-	s.mx.Lock()
-	defer s.mx.Unlock()
-
-	// TODO: читать баланс до операции, чтобы проверять не ушел ли в минус баланс
-
-	res, err := s.db.Exec(`UPDATE wallet SET balance = balance - ? WHERE id = ?`, amount, walletID)
+	tx, err := s.db.Begin()
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: %w", storage.ErrDatabaseUnavailable, err)
+	}
+	defer tx.Rollback()
+
+	var balance int
+	err = s.db.QueryRow(`SELECT balance FROM wallet WHERE id = ?`, walletID).Scan(&balance)
+	if errors.Is(err, sql.ErrNoRows) {
+		return storage.ErrWalletNotFound
 	}
 
-	rowsAffected, resErr := res.RowsAffected()
-	if resErr != nil {
-		return resErr
+	if balance < amount {
+		return storage.ErrBalanceCondition
 	}
-	if rowsAffected == 0 {
-		return storage.ErrWalletNotFound
+
+	_, err = s.db.Exec(`UPDATE wallet SET balance = balance - ? WHERE id = ?`, amount, walletID)
+	if err != nil {
+		return fmt.Errorf("%w: %w", storage.ErrDatabaseUnavailable, err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("%w: %w", storage.ErrDatabaseUnavailable, err)
 	}
 
 	return nil
@@ -101,5 +101,3 @@ func (s *Storage) Withdraw(walletID string, amount int) error {
 func (s *Storage) Close() error {
 	return s.db.Close()
 }
-
-// _ "github.com/mattn/go-sqlite3" использует CGO

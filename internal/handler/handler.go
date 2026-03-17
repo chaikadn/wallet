@@ -13,18 +13,19 @@ import (
 	"go.uber.org/zap"
 )
 
-type walletService interface {
+//go:generate go run github.com/vektra/mockery/v3@v3.7.0
+type WalletService interface {
 	GetBalance(walletID string) (int, error)
 	Deposit(walletID string, amount int) error
 	Withdraw(walletID string, amount int) error
 }
 
 type Handler struct {
-	walletService walletService
+	walletService WalletService
 	log           *zap.Logger
 }
 
-func NewHandler(walletService walletService, logger *zap.Logger) *Handler {
+func NewHandler(walletService WalletService, logger *zap.Logger) *Handler {
 	return &Handler{walletService: walletService, log: logger}
 }
 
@@ -54,14 +55,12 @@ func (h *Handler) handleBalance(w http.ResponseWriter, r *http.Request) {
 		h.respondError(w, "wallet not found", http.StatusNotFound, err)
 		return
 	}
-
 	if err != nil {
-		// TODO: выбирать статус код исходя из ошибки
-		h.respondError(w, "failed to get balance", http.StatusBadRequest, err)
+		h.respondError(w, "failed to get balance", http.StatusInternalServerError, err)
 		return
 	}
 
-	resp := balanseResponse{
+	resp := balanceResponse{
 		WalletUUID: walletUUID,
 		Balance:    balance,
 	}
@@ -76,43 +75,12 @@ func (h *Handler) handleTransaction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: валидировать структуру transactionRequest
-
+	var err error
 	switch req.OperationType {
 	case operationTypeDeposit:
-		err := h.walletService.Deposit(req.WalletUUID, req.Amount)
-		if errors.Is(err, service.ErrWalletNotFound) {
-			h.respondError(w, "wallet not found", http.StatusNotFound, err)
-			return
-		}
-		if errors.Is(err, service.ErrInvalidAmount) {
-			h.respondError(w, "amount must be greater than zero", http.StatusBadRequest, err)
-			return
-		}
-		if err != nil {
-			h.respondError(w, "failed to deposit", http.StatusInternalServerError, err)
-			return
-		}
-
+		err = h.walletService.Deposit(req.WalletUUID, req.Amount)
 	case operationTypeWithdraw:
-		err := h.walletService.Withdraw(req.WalletUUID, req.Amount)
-		if errors.Is(err, service.ErrWalletNotFound) {
-			h.respondError(w, "wallet not found", http.StatusNotFound, err)
-			return
-		}
-		if errors.Is(err, service.ErrInvalidAmount) {
-			h.respondError(w, "amount must be greater than zero", http.StatusBadRequest, err)
-			return
-		}
-		if errors.Is(err, service.ErrInsufficientFunds) {
-			h.respondError(w, "insufficient funds", http.StatusUnprocessableEntity, err)
-			return
-		}
-		if err != nil {
-			h.respondError(w, "failed to withdraw", http.StatusInternalServerError, err)
-			return
-		}
-
+		err = h.walletService.Withdraw(req.WalletUUID, req.Amount)
 	default:
 		h.respondError(
 			w, "unknown operation type", http.StatusBadRequest,
@@ -120,6 +88,23 @@ func (h *Handler) handleTransaction(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
+
+	switch {
+	case errors.Is(err, service.ErrWalletNotFound):
+		h.respondError(w, "wallet not found", http.StatusNotFound, err)
+		return
+	case errors.Is(err, service.ErrInvalidAmount):
+		h.respondError(w, "amount must be greater than zero", http.StatusBadRequest, err)
+		return
+	case errors.Is(err, service.ErrInsufficientFunds):
+		h.respondError(w, "insufficient funds", http.StatusUnprocessableEntity, err)
+		return
+	case err != nil:
+		h.respondError(w, "failed to process transaction", http.StatusInternalServerError, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) respondJSON(w http.ResponseWriter, data any, statusCode int) {
@@ -143,8 +128,3 @@ func (h *Handler) respondError(w http.ResponseWriter, errMessage string, statusC
 		h.log.Error("failed to encode error response", zap.Error(err))
 	}
 }
-
-// валидировать uuid
-// в http слое проверить не пустой ли он и соответствует ли формату
-// в service слое проверить бизнес-правила - кошелёк существует, и т.д.
-// в storage слое - обычно валидации нет (каждый слой доверяет вызвавшему его слою), но можно сделать "defensive programming", защита от ошибок самого разработчика (например, если кто-то вызвал storage напрямую, минуя handler).
