@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+
 	m "wallet/internal/middleware"
 	"wallet/internal/service"
 
@@ -35,8 +36,9 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Use(m.Logger(h.log))
 
 	r.Route("/api/v1", func(r chi.Router) {
-		r.Get("/wallets/{"+urlParamWalletUUID+"}", h.handleBalance)
 		r.Post("/wallets", h.handleTransaction)
+		r.Get("/wallets/{"+urlParamWalletUUID+"}", h.handleBalance)
+		// r.Post("/wallets/create", h.handleCreate)
 	})
 }
 

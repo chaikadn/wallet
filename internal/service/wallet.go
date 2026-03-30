@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 
 	"wallet/internal/storage"
@@ -9,9 +10,9 @@ import (
 )
 
 type WalletStorage interface {
-	GetBalance(walletID string) (int, error)
-	Deposit(walletID string, amount int) error
-	Withdraw(walletID string, amount int) error
+	GetBalance(ctx context.Context, walletID string) (int, error)
+	Deposit(ctx context.Context, walletID string, amount int) error
+	Withdraw(ctx context.Context, walletID string, amount int) error
 }
 
 type Wallet struct {
@@ -24,7 +25,7 @@ func NewWallet(walletStorage WalletStorage, logger *zap.Logger) *Wallet {
 }
 
 func (w *Wallet) GetBalance(walletID string) (int, error) {
-	balance, err := w.walletStorage.GetBalance(walletID)
+	balance, err := w.walletStorage.GetBalance(context.TODO(), walletID)
 	if errors.Is(err, storage.ErrWalletNotFound) {
 		return 0, ErrWalletNotFound
 	}
@@ -40,7 +41,7 @@ func (w *Wallet) Deposit(walletID string, amount int) error {
 		return ErrInvalidAmount
 	}
 
-	err := w.walletStorage.Deposit(walletID, amount)
+	err := w.walletStorage.Deposit(context.TODO(), walletID, amount)
 	if errors.Is(err, storage.ErrWalletNotFound) {
 		return ErrWalletNotFound
 	}
@@ -52,28 +53,14 @@ func (w *Wallet) Deposit(walletID string, amount int) error {
 }
 
 func (w *Wallet) Withdraw(walletID string, amount int) error {
-	// гонка данных между GetBalance и Withdraw (между этими проверками баланс может измениться)
-	// решается либо атомарной операцией в самом репозитории (UPDATE ... WHERE balance >= amount), либо транзакцией с SELECT FOR UPDATE
-	// лучше использовать транзакцию
-
 	if amount <= 0 {
 		return ErrInvalidAmount
 	}
 
-	balance, err := w.walletStorage.GetBalance(walletID)
-
-	if errors.Is(err, storage.ErrWalletNotFound) {
-		return ErrWalletNotFound
-	}
-	if err != nil {
-		w.log.Error("withdraw error", zap.Error(err))
-		return ErrServiceUnavailable
-	}
-	if amount > balance {
+	err := w.walletStorage.Withdraw(context.TODO(), walletID, amount)
+	if errors.Is(err, storage.ErrBalanceCondition) {
 		return ErrInsufficientFunds
 	}
-
-	err = w.walletStorage.Withdraw(walletID, amount)
 	if err != nil {
 		w.log.Error("withdraw error", zap.Error(err))
 		return ErrServiceUnavailable

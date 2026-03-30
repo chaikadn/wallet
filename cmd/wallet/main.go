@@ -6,7 +6,7 @@ import (
 	"wallet/internal/config"
 	"wallet/internal/handler"
 	"wallet/internal/service"
-	"wallet/internal/storage/sqlite"
+	"wallet/internal/storage/pg"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
@@ -25,13 +25,13 @@ func main() {
 
 	log.Info("starting wallet", zap.String("log-level", cfg.LogLevel))
 
-	storage, err := sqlite.New(cfg.StoragePath, log)
+	storage, err := pg.New(cfg.DatabaseDSN)
 	if err != nil {
 		log.Fatal("failed to connect to db", zap.Error(err))
 	}
 	defer storage.Close()
 
-	log.Debug("successfully connected to db", zap.String("path", cfg.StoragePath))
+	log.Debug("successfully connected to db")
 
 	wallet := service.NewWallet(storage, log)
 

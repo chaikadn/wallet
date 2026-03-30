@@ -163,9 +163,8 @@ func TestHandler_handleTransaction(t *testing.T) {
 				OperationType: "wrong-operation-type",
 				Amount:        100,
 			},
-			mockReturnedErr: service.ErrServiceUnavailable,
-			wantCode:        http.StatusBadRequest,
-			wantBody:        `{"error": "unknown operation type"}`,
+			wantCode: http.StatusBadRequest,
+			wantBody: `{"error": "unknown operation type"}`,
 		},
 		{
 			name: "service unavailable",

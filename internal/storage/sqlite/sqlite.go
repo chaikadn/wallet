@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"wallet/internal/storage"
 
-	"go.uber.org/zap"
 	_ "modernc.org/sqlite"
 )
 
@@ -14,13 +13,13 @@ type Storage struct {
 	db *sql.DB
 }
 
-func New(dbPath string, logger *zap.Logger) (*Storage, error) {
+func New(dbPath string) (*Storage, error) {
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", storage.ErrDatabaseUnavailable, err)
 	}
 	if err := db.Ping(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", storage.ErrDatabaseUnavailable, err)
 	}
 
 	// sqlite не может нормально работать при конкурентном доступе поэтому пока ограничим пул соединений до одного
@@ -33,7 +32,7 @@ func New(dbPath string, logger *zap.Logger) (*Storage, error) {
 				CHECK (balance >= 0)
 		)`)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", storage.ErrDatabaseUnavailable, err)
 	}
 
 	return &Storage{db: db}, nil
@@ -46,7 +45,7 @@ func (s *Storage) GetBalance(walletID string) (int, error) {
 		return 0, storage.ErrWalletNotFound
 	}
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("%w: %w", storage.ErrDatabaseUnavailable, err)
 	}
 
 	return balance, nil
@@ -55,12 +54,12 @@ func (s *Storage) GetBalance(walletID string) (int, error) {
 func (s *Storage) Deposit(walletID string, amount int) error {
 	res, err := s.db.Exec(`UPDATE wallet SET balance = balance + ? WHERE id = ?`, amount, walletID)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: %w", storage.ErrDatabaseUnavailable, err)
 	}
 
 	rowsAffected, resErr := res.RowsAffected()
 	if resErr != nil {
-		return resErr
+		return fmt.Errorf("%w: %w", storage.ErrDatabaseUnavailable, resErr)
 	}
 	if rowsAffected == 0 {
 		return storage.ErrWalletNotFound

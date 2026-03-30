@@ -9,7 +9,7 @@ import (
 
 type Config struct {
 	LogLevel    string `env:"LOG_LEVEL" envDefault:"INFO"`
-	StoragePath string `env:"STORAGE_PATH,required"`
+	DatabaseDSN string `env:"DATABASE_DSN,required"`
 	HTTPServer  `envPrefix:"SERVER_"`
 }
 

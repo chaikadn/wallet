@@ -2,3 +2,5 @@ TZ.md
 .env
 *.sql
 *.db
+
+.vscode
