@@ -1,6 +1,12 @@
 TZ.md
+*.txt
+
 .env
+*.env.*
+!*.env.example
+
 *.sql
 *.db
 
 .vscode
+
